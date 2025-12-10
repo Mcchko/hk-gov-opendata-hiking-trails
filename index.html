@@ -1,0 +1,558 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hong Kong Hiking Trails Map</title>
+    
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+          integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+          crossorigin=""/>
+    
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+            integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+            crossorigin=""></script>
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            background-color: #f5f5f5;
+            color: #333;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        header {
+            text-align: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #2d572c;
+        }
+        
+        h1 {
+            color: #2d572c;
+            margin-bottom: 8px;
+        }
+        
+        .subtitle {
+            color: #666;
+            font-size: 1.1rem;
+            margin-bottom: 20px;
+        }
+        
+        .trail-selector {
+            background-color: white;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        
+        .trail-dropdown {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+        }
+        
+        .trail-dropdown label {
+            font-weight: bold;
+            color: #2d572c;
+            font-size: 1.1rem;
+        }
+        
+        .trail-dropdown select {
+            flex: 1;
+            min-width: 300px;
+            padding: 10px 15px;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+            font-size: 1rem;
+            background-color: white;
+            cursor: pointer;
+        }
+        
+        .trail-dropdown select:hover {
+            border-color: #2d572c;
+        }
+        
+        .trail-dropdown select:focus {
+            outline: none;
+            border-color: #2d572c;
+            box-shadow: 0 0 0 2px rgba(45, 87, 44, 0.2);
+        }
+        
+        .trail-info {
+            background-color: white;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            display: none; /* Hidden until trail is selected */
+        }
+        
+        .trail-info.visible {
+            display: block;
+        }
+        
+        .trail-name {
+            font-size: 1.8rem;
+            color: #2d572c;
+            margin-bottom: 10px;
+        }
+        
+        .trail-details {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+        
+        .detail-item {
+            background-color: #f9f9f9;
+            padding: 12px 15px;
+            border-radius: 5px;
+            border-left: 4px solid #2d572c;
+        }
+        
+        .detail-label {
+            font-weight: bold;
+            color: #555;
+            display: block;
+            margin-bottom: 5px;
+        }
+        
+        #map-container {
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.15);
+            height: 500px;
+            margin-bottom: 20px;
+        }
+        
+        #map {
+            width: 100%;
+            height: 100%;
+        }
+        
+        footer {
+            text-align: center;
+            margin-top: 20px;
+            padding-top: 15px;
+            border-top: 1px solid #ddd;
+            color: #777;
+            font-size: 0.9rem;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 20px;
+            font-style: italic;
+            color: #666;
+        }
+
+        .error {
+            background-color: #ffe6e6;
+            color: #cc0000;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 10px 0;
+            border-left: 4px solid #cc0000;
+        }
+        
+        .trail-counter {
+            color: #666;
+            font-size: 0.9rem;
+            margin-top: 10px;
+            text-align: right;
+        }
+        
+        @media (max-width: 768px) {
+            .trail-details {
+                grid-template-columns: 1fr;
+            }
+            
+            #map-container {
+                height: 400px;
+            }
+            
+            .trail-name {
+                font-size: 1.5rem;
+            }
+            
+            .trail-dropdown {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+            
+            .trail-dropdown select {
+                min-width: 100%;
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Hong Kong Hiking Trails Map</h1>
+            <p class="subtitle">Explore hiking trail locations using LeafletJS</p>
+        </header>
+        
+        <div class="trail-selector">
+            <div class="trail-dropdown">
+                <label for="trail-select">Select a Hiking Trail:</label>
+                <select id="trail-select" disabled>
+                    <option value="">Loading trails...</option>
+                </select>
+            </div>
+            <div class="trail-counter" id="trail-counter">Loading...</div>
+        </div>
+        
+        <div class="trail-info" id="trail-info">
+            <div class="trail-name" id="trail-name">Select a trail from the dropdown above</div>
+            
+            <div class="trail-details">
+                <div class="detail-item">
+                    <span class="detail-label">English Name:</span>
+                    <span id="trail-en-name">-</span>
+                </div>
+                
+                <div class="detail-item">
+                    <span class="detail-label">Chinese Name:</span>
+                    <span id="trail-cn-name">-</span>
+                </div>
+                
+                <div class="detail-item">
+                    <span class="detail-label">Coordinates:</span>
+                    <span id="trail-coords">-</span>
+                </div>
+                
+                <div class="detail-item">
+                    <span class="detail-label">Region:</span>
+                    <span id="trail-region">-</span>
+                </div>
+                
+                <div class="detail-item">
+                    <span class="detail-label">Difficulty:</span>
+                    <span id="trail-difficulty">-</span>
+                </div>
+                
+                <div class="detail-item">
+                    <span class="detail-label">Distance:</span>
+                    <span id="trail-distance">-</span>
+                </div>
+            </div>
+        </div>
+        
+        <div id="map-container">
+            <div id="map"></div>
+            <div id="map-loading" class="loading">Select a trail to view on map</div>
+        </div>
+        
+        <footer>
+            <p>Hiking Trail Data from Hong Kong Government | Map powered by LeafletJS</p>
+            <p>Coordinates: <span id="coordinates-display">-</span></p>
+        </footer>
+    </div>
+    <script>
+        // Global variables
+        let trailData = null;
+        let map = null;
+        let currentTrailLayer = null;
+        let currentStartMarker = null;
+        let currentEndMarker = null;
+        let currentInfoControl = null;
+        
+        // Function to fetch trail data from API
+        async function fetchTrailData() {
+            const apiUrl = 'https://portal.csdi.gov.hk/server/services/common/afcd_rcd_1665568199103_4360/MapServer/WFSServer?service=wfs&request=GetFeature&typenames=Hiking_Trails&outputFormat=geojson&maxFeatures=1000';
+            
+            try {
+                const response = await fetch(apiUrl);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! Status: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                
+                // Check if we have features
+                if (!data.features || data.features.length === 0) {
+                    throw new Error('No trail data found in the response');
+                }
+                
+                console.log('Fetched trail data:', data);
+                console.log('Number of features:', data.features.length);
+                
+                return data;
+            } catch (error) {
+                console.error('Error fetching trail data:', error);
+                document.getElementById('trail-select').innerHTML = '<option value="">Error loading trails</option>';
+                document.getElementById('trail-counter').innerHTML = `<span class="error">Error: ${error.message}</span>`;
+                return null;
+            }
+        }
+        
+        // Function to populate the trail dropdown
+        function populateTrailDropdown(trails) {
+            const select = document.getElementById('trail-select');
+            select.innerHTML = '<option value="">Select a trail...</option>';
+            
+            trails.forEach((trail, index) => {
+                const properties = trail.properties;
+                const option = document.createElement('option');
+                option.value = index;
+                option.textContent = `${properties.NAME || 'Unnamed Trail'} ${properties.C_NAME ? `(${properties.C_NAME})` : ''} - Section ${properties.Section_No || 'N/A'}`;
+                select.appendChild(option);
+            });
+            
+            select.disabled = false;
+            document.getElementById('trail-counter').textContent = `${trails.length} trails available`;
+        }
+        
+        // Function to display trail information
+        function displayTrailInfo(trailIndex) {
+            const trailFeature = trailData.features[trailIndex];
+            const trailProperties = trailFeature.properties;
+            
+            // Get coordinates
+            let coordinates = [];
+            if (trailFeature.geometry && trailFeature.geometry.coordinates) {
+                coordinates = trailFeature.geometry.coordinates[0] || [];
+            }
+            
+            // Get the first coordinate pair for the map center
+            let latitude = 22.3193; // Default Hong Kong coordinates
+            let longitude = 114.1694;
+            
+            if (coordinates.length > 0) {
+                longitude = coordinates[0][0];
+                latitude = coordinates[0][1];
+            }
+            
+            // Update trail info section
+            const trailNameEn = trailProperties.NAME || 'Unknown Trail';
+            const trailNameCn = trailProperties.C_NAME || '未知徑';
+            const fullTrailNameEn = trailProperties.Trail_name_En || trailNameEn;
+            const fullTrailNameCn = trailProperties.Trail_name_Ch || trailNameCn;
+            const trailRegion = trailProperties.Region_En || 'Unknown Region';
+            const trailDifficulty = trailProperties.Difficult_En || 'Unknown';
+            const trailDistance = trailProperties.Shape_Length ? trailProperties.Shape_Length.toFixed(2) : 'Unknown';
+            
+            document.getElementById('trail-name').textContent = `${trailNameEn} / ${trailNameCn}`;
+            document.getElementById('trail-en-name').textContent = fullTrailNameEn;
+            document.getElementById('trail-cn-name').textContent = fullTrailNameCn;
+            document.getElementById('trail-coords').textContent = coordinates.length > 0 ? 
+                `${latitude.toFixed(6)}, ${longitude.toFixed(6)}` : 'No coordinates available';
+            document.getElementById('trail-region').textContent = trailRegion;
+            document.getElementById('trail-difficulty').textContent = trailDifficulty;
+            document.getElementById('trail-distance').textContent = `${trailDistance} meters`;
+            document.getElementById('coordinates-display').textContent = coordinates.length > 0 ? 
+                `${latitude.toFixed(4)}, ${longitude.toFixed(4)}` : '-';
+            
+            // Show trail info section
+            document.getElementById('trail-info').classList.add('visible');
+            
+            // Update map with the selected trail
+            updateMapWithTrail(trailFeature);
+        }
+        
+        // Function to update map with selected trail
+        function updateMapWithTrail(trailFeature) {
+            // Clear previous trail from map
+            if (currentTrailLayer) {
+                map.removeLayer(currentTrailLayer);
+            }
+            if (currentStartMarker) {
+                map.removeLayer(currentStartMarker);
+            }
+            if (currentEndMarker) {
+                map.removeLayer(currentEndMarker);
+            }
+            if (currentInfoControl) {
+                map.removeControl(currentInfoControl);
+            }
+            
+            // Hide loading message
+            document.getElementById('map-loading').style.display = 'none';
+            
+            // Get coordinates
+            const coordinates = trailFeature.geometry.coordinates[0] || [];
+            const trailProperties = trailFeature.properties;
+            
+            if (coordinates.length === 0) {
+                // Center map on Hong Kong if no coordinates
+                map.setView([22.3193, 114.1694], 11);
+                return;
+            }
+            
+            // Get the first coordinate pair for the map center
+            const firstCoordinate = coordinates[0];
+            const longitude = firstCoordinate[0];
+            const latitude = firstCoordinate[1];
+            
+            // Update map view
+            map.setView([latitude, longitude], 15);
+            
+            // Add a marker for the starting point
+            currentStartMarker = L.marker([latitude, longitude]).addTo(map);
+            currentStartMarker.bindPopup(`
+                <strong>Trail Start</strong><br>
+                ${trailProperties.Startpt_En || 'Start Point'}<br>
+                ${trailProperties.Startpt_Ch || '起點'}
+            `);
+            
+            // Create a polyline from the coordinates
+            // Note: Leaflet expects [lat, lng] format
+            const latLngCoordinates = coordinates.map(coord => [coord[1], coord[0]]);
+            
+            currentTrailLayer = L.polyline(latLngCoordinates, {
+                color: '#2d572c',
+                weight: 5,
+                opacity: 0.8,
+                dashArray: '10, 10'
+            }).addTo(map);
+            
+            const trailNameEn = trailProperties.NAME || 'Unknown Trail';
+            const fullTrailNameEn = trailProperties.Trail_name_En || trailNameEn;
+            const trailDifficulty = trailProperties.Difficult_En || 'Unknown';
+            const trailDistance = trailProperties.Shape_Length ? trailProperties.Shape_Length.toFixed(2) : 'Unknown';
+            
+            currentTrailLayer.bindPopup(`
+                <strong>${trailNameEn}</strong><br>
+                ${fullTrailNameEn}<br><br>
+                <strong>Section:</strong> ${trailProperties.Section_No || 'N/A'}<br>
+                <strong>Difficulty:</strong> ${trailDifficulty}<br>
+                <strong>Length:</strong> ${trailDistance} meters
+            `);
+            
+            // Add end point marker if we have enough coordinates
+            if (coordinates.length > 1) {
+                const lastCoordinate = coordinates[coordinates.length - 1];
+                const endLatitude = lastCoordinate[1];
+                const endLongitude = lastCoordinate[0];
+                
+                currentEndMarker = L.marker([endLatitude, endLongitude]).addTo(map);
+                currentEndMarker.bindPopup(`
+                    <strong>Trail End</strong><br>
+                    ${trailProperties.Finishpt_E || 'End Point'}<br>
+                    ${trailProperties.Finishpt_C || '終點'}
+                `);
+            }
+            
+            // Fit map bounds to show the entire trail
+            if (latLngCoordinates.length > 1) {
+                map.fitBounds(currentTrailLayer.getBounds());
+            }
+            
+            // Add a custom control with trail info
+            currentInfoControl = L.control({position: 'topright'});
+            
+            currentInfoControl.onAdd = function() {
+                const div = L.DomUtil.create('div', 'trail-map-info');
+                div.innerHTML = `
+                    <div style="background: white; padding: 10px; border-radius: 5px; box-shadow: 0 1px 5px rgba(0,0,0,0.4); font-size: 14px;">
+                        <strong>${trailNameEn}</strong><br>
+                        Section ${trailProperties.Section_No || 'N/A'}<br>
+                        <span style="color: #2d572c; font-weight: bold;">${trailDifficulty}</span>
+                    </div>
+                `;
+                return div;
+            };
+            
+            currentInfoControl.addTo(map);
+        }
+        
+        // Function to initialize the map
+        function initMap() {
+            // Create map centered on Hong Kong
+            map = L.map('map').setView([22.3193, 114.1694], 11);
+            
+            // Add OpenStreetMap tiles
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+                maxZoom: 19
+            }).addTo(map);
+            
+            // Add a scale control
+            L.control.scale({imperial: false}).addTo(map);
+        }
+        
+        // Main function to initialize everything
+        async function initApp() {
+            try {
+                // Initialize map
+                initMap();
+                
+                // Fetch data from API
+                trailData = await fetchTrailData();
+                
+                if (trailData && trailData.features && trailData.features.length > 0) {
+                    // Populate the trail dropdown
+                    populateTrailDropdown(trailData.features);
+                    
+                    // Add event listener for trail selection
+                    document.getElementById('trail-select').addEventListener('change', function() {
+                        const selectedIndex = this.value;
+                        
+                        if (selectedIndex !== '') {
+                            displayTrailInfo(parseInt(selectedIndex));
+                        } else {
+                            // Hide trail info when no trail is selected
+                            document.getElementById('trail-info').classList.remove('visible');
+                            document.getElementById('map-loading').style.display = 'block';
+                            document.getElementById('map-loading').textContent = 'Select a trail to view on map';
+                            
+                            // Clear map
+                            if (currentTrailLayer) {
+                                map.removeLayer(currentTrailLayer);
+                                currentTrailLayer = null;
+                            }
+                            if (currentStartMarker) {
+                                map.removeLayer(currentStartMarker);
+                                currentStartMarker = null;
+                            }
+                            if (currentEndMarker) {
+                                map.removeLayer(currentEndMarker);
+                                currentEndMarker = null;
+                            }
+                            if (currentInfoControl) {
+                                map.removeControl(currentInfoControl);
+                                currentInfoControl = null;
+                            }
+                            
+                            // Reset map view
+                            map.setView([22.3193, 114.1694], 11);
+                        }
+                    });
+                    
+                    // Auto-select the first trail
+                    document.getElementById('trail-select').value = '0';
+                    document.getElementById('trail-select').dispatchEvent(new Event('change'));
+                }
+            } catch (error) {
+                console.error('Error initializing app:', error);
+                document.getElementById('trail-counter').innerHTML = `<span class="error">Application error: ${error.message}</span>`;
+            }
+        }
+        
+        // Initialize app when page loads
+        document.addEventListener('DOMContentLoaded', initApp);
+    </script>
+</body>
+</html>
